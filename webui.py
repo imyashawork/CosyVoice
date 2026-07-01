@@ -87,7 +87,29 @@ instruct_preset_choices = [
 ]
 
 stream_mode_list = [('否', False), ('是', True)]
+device_mode_list = [('GPU (CUDA)', 'cuda'), ('CPU', 'cpu')]
 max_val = 0.8
+
+
+def reload_model(device):
+    global cosyvoice, sft_spk, default_data
+    device_label = 'GPU (CUDA)' if device == 'cuda' else 'CPU'
+    gr.Info('正在切换到{}，模型重新加载中，请等待...'.format(device_label))
+    del cosyvoice
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    cosyvoice = AutoModel(model_dir=args.model_dir, device=device, fp16=args.fp16)
+    sft_spk = cosyvoice.list_available_spks()
+    if len(sft_spk) == 0:
+        sft_spk = ['']
+    default_data = np.zeros(cosyvoice.sample_rate)
+    gr.Info('已成功切换到{}'.format(device_label))
+    return gr.update(choices=sft_spk, value=sft_spk[0] if sft_spk and sft_spk[0] else None)
+
+
+def stop_audio_generation():
+    cosyvoice.model.stop_signal = True
+    gr.Info('正在停止音频生成...')
 
 
 def generate_seed():
@@ -393,6 +415,15 @@ def main():
                 seed = gr.Number(value=0, label="随机推理种子")
 
         with gr.Row():
+            device_radio = gr.Radio(
+                choices=device_mode_list,
+                label='推理设备',
+                value=device_mode_list[0][1] if torch.cuda.is_available() else device_mode_list[1][1],
+                scale=2
+            )
+            switch_device_button = gr.Button("切换设备", variant="secondary", scale=1)
+
+        with gr.Row():
             prompt_wav_upload = gr.Audio(
                 sources='upload',
                 type='filepath',
@@ -442,17 +473,21 @@ def main():
                 inputs=[tts_text, mode_checkbox_group, instruct_text],
             )
 
-        generate_button = gr.Button("生成音频", variant="primary")
+        with gr.Row():
+            generate_button = gr.Button("生成音频", variant="primary", scale=4)
+            stop_button = gr.Button("停止生成", variant="stop", scale=1)
 
         audio_output = gr.Audio(label="合成音频", autoplay=True)
         file_path_output = gr.Textbox(label="音频文件路径", interactive=False, placeholder="生成后显示文件路径")
 
         seed_button.click(generate_seed, inputs=[], outputs=seed)
-        generate_button.click(generate_audio,
+        switch_device_button.click(fn=reload_model, inputs=[device_radio], outputs=[sft_dropdown])
+        generate_event = generate_button.click(generate_audio,
                               inputs=[tts_text, mode_checkbox_group, sft_dropdown, prompt_text,
                                       prompt_wav_upload, prompt_wav_record, source_wav_upload,
                                       instruct_text, seed, stream, speed],
                               outputs=[audio_output, file_path_output])
+        stop_button.click(fn=stop_audio_generation, cancels=[generate_event])
         mode_checkbox_group.change(fn=change_instruction, inputs=[mode_checkbox_group], outputs=[instruction_text])
         instruct_preset.change(fn=select_instruct_preset, inputs=[instruct_preset], outputs=[instruct_text])
     demo.queue(max_size=4, default_concurrency_limit=2)
@@ -468,8 +503,16 @@ if __name__ == '__main__':
                         type=str,
                         default='pretrained_models/Fun-CosyVoice3-0.5B',
                         help='local path or modelscope repo id')
+    parser.add_argument('--device',
+                        type=str,
+                        default=None,
+                        help='device for inference (cuda/cpu), auto-detect if not specified')
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        default=False,
+                        help='enable fp16 mixed precision for GPU inference to reduce VRAM usage')
     args = parser.parse_args()
-    cosyvoice = AutoModel(model_dir=args.model_dir)
+    cosyvoice = AutoModel(model_dir=args.model_dir, device=args.device, fp16=args.fp16)
 
     sft_spk = cosyvoice.list_available_spks()
     if len(sft_spk) == 0:

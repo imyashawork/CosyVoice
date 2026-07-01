@@ -16,11 +16,12 @@ done
 if [ -n "$CONDA_BASE" ]; then
     source "$CONDA_BASE/etc/profile.d/conda.sh"
     conda activate cosyvoice
-    python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B
+    export CUDA_HOME="$CONDA_PREFIX"
+    python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B --fp16
 elif command -v conda &> /dev/null; then
-    conda run -n cosyvoice python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B
+    conda run -n cosyvoice python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B --fp16
 else
     echo "错误: 未找到 conda，请先安装 conda 或手动激活 cosyvoice 环境后运行："
-    echo "  python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B"
+    echo "  python webui.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B --fp16"
     exit 1
 fi
