@@ -64,11 +64,12 @@ cosyvoice = AutoModel(model_dir='pretrained_models/Fun-CosyVoice3-0.5B')
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `model_dir` | `str` | 必填 | 本地路径或 ModelScope 模型 ID。路径不存在时自动从 ModelScope 下载 |
-| `load_jit` | `bool` | `False` | 加载 TorchScript 加速（需要 CUDA） |
+| `load_jit` | `bool` | `False` | 加载 TorchScript 加速（需要 CUDA）。仅 v1/v2 支持，v3 无此参数 |
 | `load_trt` | `bool` | `False` | 加载 TensorRT 加速（需要 CUDA） |
-| `load_vllm` | `bool` | `False` | 使用 vLLM 加速 LLM 推理（v2/v3，需要 CUDA） |
+| `load_vllm` | `bool` | `False` | 使用 vLLM 加速 LLM 推理（仅 v2/v3，需要 CUDA） |
 | `fp16` | `bool` | `False` | 半精度推理（CPU 自动禁用） |
 | `trt_concurrent` | `int` | `1` | TensorRT 并发上下文数 |
+| `device` | `str` | `None` | 推理设备（`'cuda'`/`'cpu'`），不指定时自动检测 |
 
 **实例属性：**
 
@@ -459,7 +460,7 @@ for i, j in enumerate(cosyvoice.inference_zero_shot(
 
 ## 9. 指令控制参考列表
 
-CosyVoice3 的 `instruct_instruct2` 支持以下指令（源自 `cosyvoice/utils/common.py`）：
+CosyVoice3 的 `inference_instruct2` 支持以下指令（源自 `cosyvoice/utils/common.py`）：
 
 ### 方言控制
 
@@ -520,7 +521,7 @@ You are a helpful assistant. <指令内容><|endofprompt|>
 启动 Gradio Web 界面，方便交互测试：
 
 ```bash
-python webui.py --port 50000 --model_dir pretrained_models/CosyVoice-300M
+python webui.py --port 50000
 ```
 
 **参数：**
@@ -528,13 +529,16 @@ python webui.py --port 50000 --model_dir pretrained_models/CosyVoice-300M
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--port` | `8000` | Web 服务端口 |
-| `--model_dir` | `pretrained_models/CosyVoice2-0.5B` | 模型目录 |
+| `--model_dir` | `pretrained_models/Fun-CosyVoice3-0.5B` | 模型目录（本地路径或 ModelScope ID） |
+| `--device` | `None` | 推理设备（`cuda`/`cpu`），不指定时自动检测 |
+| `--fp16` | `False` | 启用 fp16 混合精度推理（降低显存占用） |
 
 Web UI 支持以下模式：
 - 预训练音色 (SFT)
-- 3 秒极速复刻 (Zero-shot)
+- 3s 极速复刻 (Zero-shot)
 - 跨语种复刻 (Cross-lingual)
 - 自然语言控制 (Instruct)
+- 语音转换 (Voice Conversion)
 
 ---
 
@@ -546,6 +550,8 @@ Web UI 支持以下模式：
 cd runtime/python/fastapi
 python server.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B
 ```
+
+**参数：** `--port` 默认 `50000`；`--model_dir` 默认 `iic/CosyVoice2-0.5B`（ModelScope 模型 ID，本地不存在时自动下载）。
 
 ### API 端点
 
